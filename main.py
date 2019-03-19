@@ -16,7 +16,9 @@ import ssl
 import threading
 from bs4 import BeautifulSoup
 
-list_url       = "https://www.douban.com/group/kuakua/discussion?type=essence&start=0";
+list_url    = "https://www.douban.com/group/kuakua/discussion?type=essence&start=0";
+content_url = "";
+
 save_path = 'save/';
 
 headers = {
@@ -27,7 +29,8 @@ myRequests = requests.Session();
 myRequests.headers.update(headers);
 
 address_list = [];
-
+content_list = [];
+stat_info    = {};
 
 def main():
 
@@ -36,23 +39,56 @@ def main():
 
 	headers['Cookie'] = config['cookie'];
 
-	# 获取列表页面
-	html = readFile(save_path + 'list.html');
+	# catt todo 循环获取列表
 
-	# 解析
-	list_ = handleListHtml(html);
+	# # 获取列表页面
+	# # html = getHtml(list_url);
+	# # saveFile(html, save_path + 'list.html');
+	# html = readFile(save_path + 'list.html');
 
-	# 推入全局数组
-	for item in list_:
-		address_list.append(item);
+	# # 解析
+	# list_ = handleListHtml(html);
+
+	# # 推入全局数组
+	# for item in list_:
+	# 	address_list.append(item);
+
+	# # 保存到文件
+	# saveJson(address_list, save_path + 'address_list.json');
 
 
-	# 保存到文件
-	saveJson(address_list, save_path + 'address_list.json');
+	# 从文件加载
+	address_list = readJson(save_path + 'address_list.json');
 
-	# html = getHtml(list_url);
 
-	# saveFile(html, save_path + 'list.html');
+	address = address_list[0];
+
+	url = address['href'];
+
+	# content = getHtml(url);
+	# saveFile(content, save_path + 'content.html');
+
+	content = readFile(save_path + 'content.html');
+
+	item = handleContentHtml(content);
+
+	item['info']         = address;
+
+	content_list.append(item);
+
+	saveJson(content_list, save_path + 'content_list.json');
+
+	# for address in address_list:
+		
+	# 	item_ = {};
+
+	# 	item_['title']   = address['title'];
+	# 	item_['address'] = address['href'];
+	# 	item_['content'] = '';
+
+	# print(address_list);
+
+
 
 	# print("Hello world");
 
@@ -66,6 +102,10 @@ def getHtml(url):
 	html = r.content;
 
 	return html;
+
+def del_content_blank(s):
+	clean_str = re.sub(r'\n|&nbsp|\xa0|\\xa0|\u3000|\\u3000|\\u0020|\u0020', '', s) 
+	return clean_str 
 
 def handleListHtml(html):
 
@@ -87,6 +127,57 @@ def handleListHtml(html):
 		list_.append(item);
 
 	return list_;
+
+def handleContentHtml(html):
+
+	data = {};
+
+	data['content']      = '';
+	data['popular_list'] = [];
+	data['comment_list'] = [];
+
+	bs = BeautifulSoup(html, 'html.parser');
+
+	article = bs.find('div', class_ = 'article');
+
+	# 获取内容
+	topic_content = article.find('div', class_ = 'topic-richtext');
+
+	t_ = del_content_blank(topic_content.text);
+
+	# print(t_);
+
+	data['content'] = t_;
+
+	popular_list = article.find('ul', class_ = 'topic-reply popular-bd');
+	popular_list = popular_list.find_all('div', class_ = 'reply-doc content');
+
+	# 获取高赞列表
+	for popular in popular_list:
+
+		t_ = del_content_blank(popular.find('p').text);
+
+		# print(t_);
+
+		data['popular_list'].append(t_);
+
+	
+	comment_list = article.find('ul', id = 'comments').find_all('li');
+
+	# 获取评论列表
+	for comment in comment_list:
+
+		quote = comment.find('div', class_ = 'reply-quote');
+
+		if(quote != None):
+			continue;
+
+		t_ = del_content_blank(comment.find('p').text);
+		# print(t_);
+
+		data['comment_list'].append(t_);
+
+	return data;
 
 
 def saveFile(text, path): 
@@ -116,7 +207,7 @@ def readFile(path):
 
 def saveJson(data, path):
 
-	text = json.dumps(data);
+	text = json.dumps(data, indent = 4);
 
 	text = text.decode('unicode_escape').encode('utf-8');
 
