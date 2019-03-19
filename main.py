@@ -50,10 +50,10 @@ def main():
 
 	headers['Cookie'] = config['cookie'];
 
-
 	func_list();
 	func_content();
 
+	saveJson(stat_info, save_stat_info);
 	print("\n\n所有内容抓取完毕。 \n\n主题: %s 条; 高赞回复: %s 条; 回复: %s 条" % ( stat_info['content_count'], stat_info['popular_count'], stat_info['comment_count'] ));
 
 def func_content():
@@ -69,10 +69,18 @@ def func_content():
 		url = address['href'];
 		# url = 'https://www.douban.com/group/topic/134589834/';
 
+		# 延时 0.1 秒
+
+		if(i % 60 == 0):
+			time.sleep(1);
+		elif(i % 15 == 0):
+			time.sleep(0.1);
+		else:
+			# time.sleep(0.01);
+			pass
+
 		print('\n正在抓取... (%s/%s) \n标题: %s \n地址: %s' % (i, content_count, address['title'].encode('utf-8'), address['href'].encode('utf-8')));
 
-		# 延时 0.1 秒
-		time.sleep(0.1);
 
 		# content = readFile(save_path + 'content.html');
 		content = getHtml(url);
@@ -93,8 +101,8 @@ def func_content():
 
 		print('完成, 高赞 %s 条, 评论 %s 条' % (popular_count, comment_count));
 
-	# 保存
-	saveJson(content_list, save_content_list);
+		# 保存
+		saveJson(content_list, save_content_list);
 
 	print('\n内容抓取完成, 已经保存至: ' + save_content_list);
 
@@ -102,10 +110,7 @@ def func_content():
 
 def func_list():
 
-	# catt todo 循环获取列表
-
 	# 获取列表页面
-	
 	
 	for page in xrange(start_page, target_page + 1):
 
@@ -116,7 +121,7 @@ def func_list():
 		# 延时 0.1 s
 		time.sleep(0.1);
 
-		html = getHtml(list_url);
+		html = getHtml(url);
 		# saveFile(html, save_path + 'list.html');
 		# html = readFile(save_path + 'list.html');
 
@@ -131,12 +136,12 @@ def func_list():
 
 		print("第 %s/%s 页获取完成, 共 %s 条" % (page, target_page, count));
 
+		# 保存到文件
+		saveJson(address_list, save_address_list);
 
 	total_count = len(address_list);
 	stat_info['content_count'] = total_count;
 
-	# 保存到文件
-	saveJson(address_list, save_address_list);
 
 	print("列表页面采集完成, 共计 %s 页, %s 条, 已经存储到 %s" % (page - start_page + 1, total_count, save_address_list));
 
@@ -154,7 +159,7 @@ def getHtml(url):
 	return html;
 
 def del_content_blank(s):
-	clean_str = re.sub(r'\n|&nbsp|\xa0|\\xa0|\u3000|\\u3000|\\u0020|\u0020', '', s) 
+	clean_str = re.sub(r'\n|\r|&nbsp|\xa0|\\xa0|\u3000|\\u3000|\\u0020|\u0020', '', s) 
 	return clean_str 
 
 def handleListHtml(html):
@@ -171,7 +176,7 @@ def handleListHtml(html):
 	for title in title_list:
 		item = {};
 
-		item['title'] = title['title'];
+		item['title'] = del_content_blank(title['title']);
 		item['href']  = title['href'];
 
 		list_.append(item);
@@ -182,22 +187,12 @@ def handleContentHtml(html):
 
 	data = {};
 
-	data['content']      = '';
 	data['popular_list'] = [];
 	data['comment_list'] = [];
 
 	bs = BeautifulSoup(html, 'html.parser');
 
 	article = bs.find('div', class_ = 'article');
-
-	# 获取内容
-	topic_content = article.find('div', class_ = 'topic-richtext');
-
-	t_ = del_content_blank(topic_content.text);
-
-	# print(t_);
-
-	data['content'] = t_;
 
 	popular_list = article.find('ul', class_ = 'topic-reply popular-bd');
 
@@ -216,7 +211,6 @@ def handleContentHtml(html):
 	
 	comment_list = article.find('ul', id = 'comments').find_all('li');
 
-	# 获取评论列表
 	for comment in comment_list:
 
 		quote = comment.find('div', class_ = 'reply-quote');
