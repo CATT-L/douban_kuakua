@@ -16,10 +16,14 @@ import ssl
 import threading
 from bs4 import BeautifulSoup
 
-list_url    = "https://www.douban.com/group/kuakua/discussion?type=essence&start=0";
+list_url    = "https://www.douban.com/group/kuakua/discussion?type=essence&start=";
 content_url = "";
 
 save_path = 'save/';
+
+save_address_list = save_path + 'address_list.json';
+save_content_list = save_path + 'content_list.json';
+save_stat_info    = save_path + 'stat_info.json';
 
 headers = {
 	"User-Agent" : "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36"
@@ -28,9 +32,16 @@ headers = {
 myRequests = requests.Session();
 myRequests.headers.update(headers);
 
+start_page = 1;
+target_page  = 30;
+
 address_list = [];
 content_list = [];
-stat_info    = {};
+stat_info    = {
+	'content_count': 0,
+	'popular_count': 0,
+	'comment_count': 0,
+};
 
 def main():
 
@@ -39,58 +50,97 @@ def main():
 
 	headers['Cookie'] = config['cookie'];
 
+
+	func_list();
+	func_content();
+
+	print("\n\n所有内容抓取完毕。 \n\n主题: %s 条; 高赞回复: %s 条; 回复: %s 条" % ( stat_info['content_count'], stat_info['popular_count'], stat_info['comment_count'] ));
+
+def func_content():
+
+	address_list               = readJson(save_address_list);
+	content_count              = len(address_list);
+	stat_info['content_count'] = content_count;
+	i                          = 0;
+
+	for address in address_list:
+		i = i + 1;
+
+		url = address['href'];
+		# url = 'https://www.douban.com/group/topic/134589834/';
+
+		print('\n正在抓取... (%s/%s) \n标题: %s \n地址: %s' % (i, content_count, address['title'].encode('utf-8'), address['href'].encode('utf-8')));
+
+		# 延时 0.1 秒
+		time.sleep(0.1);
+
+		# content = readFile(save_path + 'content.html');
+		content = getHtml(url);
+
+		print('正在解析...');
+
+		item = handleContentHtml(content);
+
+		item['info'] = address;
+
+		content_list.append(item);
+
+		popular_count = len(item['popular_list']);
+		comment_count = len(item['comment_list']);
+
+		stat_info['popular_count'] += popular_count;
+		stat_info['comment_count'] += comment_count;
+
+		print('完成, 高赞 %s 条, 评论 %s 条' % (popular_count, comment_count));
+
+	# 保存
+	saveJson(content_list, save_content_list);
+
+	print('\n内容抓取完成, 已经保存至: ' + save_content_list);
+
+
+
+def func_list():
+
 	# catt todo 循环获取列表
 
-	# # 获取列表页面
-	# # html = getHtml(list_url);
-	# # saveFile(html, save_path + 'list.html');
-	# html = readFile(save_path + 'list.html');
+	# 获取列表页面
+	
+	
+	for page in xrange(start_page, target_page + 1):
 
-	# # 解析
-	# list_ = handleListHtml(html);
+		url = list_url + str(25 * (page - 1));
 
-	# # 推入全局数组
-	# for item in list_:
-	# 	address_list.append(item);
+		print("正在获取列表第 %s/%s 页, 地址: %s" % (page, target_page, url));
 
-	# # 保存到文件
-	# saveJson(address_list, save_path + 'address_list.json');
+		# 延时 0.1 s
+		time.sleep(0.1);
 
+		html = getHtml(list_url);
+		# saveFile(html, save_path + 'list.html');
+		# html = readFile(save_path + 'list.html');
 
-	# 从文件加载
-	address_list = readJson(save_path + 'address_list.json');
+		# 解析
+		list_ = handleListHtml(html);
 
+		# 推入全局数组
+		for item in list_:
+			address_list.append(item);
 
-	address = address_list[0];
+		count = len(list_);
 
-	url = address['href'];
-
-	# content = getHtml(url);
-	# saveFile(content, save_path + 'content.html');
-
-	content = readFile(save_path + 'content.html');
-
-	item = handleContentHtml(content);
-
-	item['info']         = address;
-
-	content_list.append(item);
-
-	saveJson(content_list, save_path + 'content_list.json');
-
-	# for address in address_list:
-		
-	# 	item_ = {};
-
-	# 	item_['title']   = address['title'];
-	# 	item_['address'] = address['href'];
-	# 	item_['content'] = '';
-
-	# print(address_list);
+		print("第 %s/%s 页获取完成, 共 %s 条" % (page, target_page, count));
 
 
+	total_count = len(address_list);
+	stat_info['content_count'] = total_count;
 
-	# print("Hello world");
+	# 保存到文件
+	saveJson(address_list, save_address_list);
+
+	print("列表页面采集完成, 共计 %s 页, %s 条, 已经存储到 %s" % (page - start_page + 1, total_count, save_address_list));
+
+
 
 
 def getHtml(url):
@@ -150,16 +200,18 @@ def handleContentHtml(html):
 	data['content'] = t_;
 
 	popular_list = article.find('ul', class_ = 'topic-reply popular-bd');
-	popular_list = popular_list.find_all('div', class_ = 'reply-doc content');
 
-	# 获取高赞列表
-	for popular in popular_list:
+	if(popular_list != None):
+		popular_list = popular_list.find_all('div', class_ = 'reply-doc content');
 
-		t_ = del_content_blank(popular.find('p').text);
+		# 获取高赞列表
+		for popular in popular_list:
 
-		# print(t_);
+			t_ = del_content_blank(popular.find('p').text);
 
-		data['popular_list'].append(t_);
+			# print(t_);
+
+			data['popular_list'].append(t_);
 
 	
 	comment_list = article.find('ul', id = 'comments').find_all('li');
