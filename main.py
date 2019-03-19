@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
+
 from __future__ import print_function
 
 import os
@@ -25,6 +26,8 @@ headers = {
 myRequests = requests.Session();
 myRequests.headers.update(headers);
 
+address_list = [];
+
 
 def main():
 
@@ -32,7 +35,21 @@ def main():
 	config = readJson('config.json');
 
 	headers['Cookie'] = config['cookie'];
-	
+
+	# 获取列表页面
+	html = readFile(save_path + 'list.html');
+
+	# 解析
+	list_ = handleListHtml(html);
+
+	# 推入全局数组
+	for item in list_:
+		address_list.append(item);
+
+
+	# 保存到文件
+	saveJson(address_list, save_path + 'address_list.json');
+
 	# html = getHtml(list_url);
 
 	# saveFile(html, save_path + 'list.html');
@@ -49,6 +66,28 @@ def getHtml(url):
 	html = r.content;
 
 	return html;
+
+def handleListHtml(html):
+
+	bs = BeautifulSoup(html, 'html.parser');
+
+	table = bs.find('table', class_='olt');
+
+	title_list = table.find_all('a', href = re.compile(r'.*?/topic/.*'));
+
+	list_ = [];
+
+
+	for title in title_list:
+		item = {};
+
+		item['title'] = title['title'];
+		item['href']  = title['href'];
+
+		list_.append(item);
+
+	return list_;
+
 
 def saveFile(text, path): 
 
@@ -74,6 +113,15 @@ def readFile(path):
 		f.close();
 
 	return text;
+
+def saveJson(data, path):
+
+	text = json.dumps(data);
+
+	text = text.decode('unicode_escape').encode('utf-8');
+
+	saveFile(text, path);
+
 
 def readJson(path):
 
