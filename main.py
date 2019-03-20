@@ -159,7 +159,12 @@ def getHtml(url):
 	return html;
 
 def del_content_blank(s):
-	clean_str = re.sub(r'\n|\r|&nbsp|\xa0|\\xa0|\u3000|\\u3000|\\u0020|\u0020', '', s) 
+	clean_str = re.sub(r'\n|\r|&nbsp|\xa0|\\xa0|\u3000|\\u3000|\\u0020|\u0020', '', s);
+
+	# 转义反斜杠和双引号
+	clean_str = re.sub(r'\\', '\\\\', s);
+	clean_str = re.sub(r'\"', '\\\"', s);
+
 	return clean_str 
 
 def handleListHtml(html):
